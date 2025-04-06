@@ -1,172 +1,359 @@
-/**
- * WordPress jQuery-Ajax-Comments 
- */
-$(document).ready(function() {
-    ajaxComt();
+document.addEventListener('DOMContentLoaded', function() {
+    const commentForm = document.getElementById('commentform');
+    if (commentForm) {
+        commentForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const messageArea = document.querySelector('.message-content');
+            const submitBtn = this.querySelector('.submit-btn');
+            const submitBtnIcon = submitBtn.querySelector('i');
+            
+            // 更改按钮状态为提交中
+            submitBtn.disabled = true;
+            submitBtnIcon.className = 'fa fa-spinner fa-spin';
+            submitBtn.innerHTML = `${submitBtnIcon.outerHTML} 正在发表...`;
+
+            // 添加AJAX请求参数
+            formData.append('action', 'ajax_comment');
+            formData.append('security', document.querySelector('#comment_nonce_field').value);
+
+            fetch(ajax_object.ajaxurl, {
+                method: 'POST',
+                body: formData,
+                credentials: 'same-origin'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 清空输入框
+                    this.querySelector('textarea').value = '';
+                    
+                    // 更新用户信息显示
+                    const userNameElement = document.querySelector('.user-info .user-name');
+                    const userEmailElement = document.querySelector('.user-info .user-email');
+                    if (userNameElement && !ajax_object .is_user_logged_in) {
+                        userNameElement.textContent = formData.get('author');
+                    }
+                    if (userEmailElement && !ajax_object .is_user_logged_in) {
+                        userEmailElement.textContent = formData.get('email');
+                    }
+                    
+                    // 获取新评论容器
+                    const commentNew = document.querySelector('.comment-new');
+                    const newContent = commentNew.querySelector('.new-content');
+                    
+                    // 插入新评论
+                    const newComment = createCommentElement(data.data.comment);
+                    newContent.insertAdjacentElement('afterbegin', newComment);
+                    
+                    // 显示新评论容器并添加动画效果
+                    commentNew.style.display = 'block';
+                    void commentNew.offsetWidth;
+                    commentNew.classList.add('show');
+                    
+                    // 初始化新评论中的懒加载图片
+                    const lazyImages = newComment.querySelectorAll('img.lazy');
+                    lazyImages.forEach(img => {
+                        const imageObserver = new IntersectionObserver((entries, observer) => {
+                            entries.forEach(entry => {
+                                if (entry.isIntersecting) {
+                                    img.src = img.dataset.src;
+                                    img.classList.remove('lazy');
+                                    observer.unobserve(img);
+                                }
+                            });
+                        });
+                        imageObserver.observe(img);
+                    });
+                    
+                    // 更新评论计数
+                    updateCommentCount();
+                    
+                    showMessage(data.data.message || '评论提交成功！', 'success');
+                } else {
+                    showMessage(data.data || '提交失败，请检查输入！', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('评论提交错误:', error);
+                showMessage('网络错误，请重试！', 'error');
+            })
+            .finally(() => {
+                // 恢复按钮状态
+                submitBtn.disabled = false;
+                submitBtnIcon.className = 'fa fa-paper-plane';
+                submitBtn.innerHTML = `${submitBtnIcon.outerHTML} 发表评论`;
+            });
+        });
+    }
+
+    // 创建评论元素
+    function createCommentElement(comment) {
+        // 使用临时div包裹处理空格问题
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = comment.trim();
+        return tempDiv.firstElementChild;
+    }
+
+    // 更新评论数量
+    function updateCommentCount() {
+        const countElement = document.querySelector('.post-comments h2');
+        const currentCount = parseInt(countElement.textContent.match(/\d+/)[0]);
+        countElement.textContent = countElement.textContent.replace(/\d+/, currentCount + 1);
+    }
+
+    // 回复按钮处理
+    document.body.addEventListener('click', function(e) {
+        if (e.target.closest('.comment-reply-link')) {
+            e.preventDefault();
+            const replyLink = e.target.closest('.comment-reply-link');
+            const commentId = replyLink.dataset.commentid;
+            document.querySelector('#comment_parent').value = commentId;
+            document.getElementById('cancel-comment-reply-link').style.display = 'inline';
+        }
+    });
 });
-function ajaxComt(){ 
-var i = 0, got = -1, len = document.getElementsByTagName('script').length;
-while ( i <= len && got == -1){
-	var js_url = document.getElementsByTagName('script')[i].src,
-			got = js_url.indexOf('comments.js'); i++ ;
+
+// 评论工具栏功能初始化
+function initCommentToolbar() {
+    const commentTextarea = document.querySelector('#comment');
+    const emojiBtn = document.querySelector('.emoji-btn');
+    const uploadBtn = document.querySelector('.upload-btn');
+    const codeBtn = document.querySelector('.code-btn');
+    const emojiPanel = document.querySelector('.emoji-panel');
+    const codePanel = document.querySelector('.code-panel');
+    const uploadInput = document.querySelector('.upload-input');
+    
+    if(emojiBtn && emojiPanel) {
+        emojiBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // 添加元素存在性检查
+            const isVisible = emojiPanel && emojiPanel.style.display === 'block';
+            if(emojiPanel) {
+                emojiPanel.style.display = isVisible ? 'none' : 'block';
+                codePanel && (codePanel.style.display = 'none');
+            }
+            
+            if(emojiPanel && !isVisible) {
+                const firstTab = emojiPanel.querySelector('.emoji-tabs span');
+                if(firstTab) {
+                    firstTab.click();
+                }
+            }
+        });
+
+        const emojis = {
+            emoji: [
+                '😀','😁','😂','🤣','😃','😄',
+                '😅','😆','😉','😊','😋','😎',
+                '😍','🥰','😘','😗','😙','😚',
+                '😛','😝','🤗','🤔','🤨','😐',
+                '😑','😶','🙄','😏','😣','😥',
+                '😮','🤤','😴','😪','😵','😵',
+                '😵','🤯','🤠','🤡','🤥','🤫',
+                '🤔','🤨','😐','😑','😶','🙄',
+            ],
+            custom: ['(⌒▽⌒)', '(￣▽￣)', '(=・ω・=)', '(｀・ω・´)', 
+                '(〜￣△￣)〜', '(･∀･)', '(°∀°)ﾉ', '(￣3￣)', '╮(￣▽￣)╭',
+                '(*>.<*)', '( ˃̶͈◡˂̶͈ ) hi!','⚆_⚆？', '⚆_⚆', '(｡•ˇ‸ˇ•｡)'
+            ]        
+        };
+
+        const emojiContent = emojiPanel.querySelector('.emoji-content');
+        const emojiTabs = emojiPanel.querySelectorAll('.emoji-tabs span');
+                emojiTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const type = tab.dataset.tab;
+                emojiTabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                emojiContent.innerHTML = '';
+                emojis[type].forEach(emoji => {
+                    const span = document.createElement('span');
+                    span.textContent = emoji;
+                    span.addEventListener('click', () => {
+                        insertAtBoxmoe(commentTextarea, emoji);
+                        emojiPanel.style.display = 'none';
+                    });
+                    emojiContent.appendChild(span);
+                });
+            });
+            
+            // 默认激活emoji标签
+            if(tab.classList.contains('active')) {
+                tab.click();
+            }
+        });
+    }
+
+    // 图片上传功能
+    if(uploadBtn && uploadInput) {
+        uploadBtn.addEventListener('click', () => {
+            uploadInput.click();
+        });
+
+        uploadInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if(file) {
+                if(file.size > 2 * 1024 * 1024) { // 2MB限制
+                    showMessage('图片大小不能超过2MB', 'error');
+                    return;
+                }
+                
+                try {
+                    const imgUrl = await uploadImage(file);
+                    insertAtBoxmoe(commentTextarea, `![${file.name}](${imgUrl})`);
+                } catch(err) {
+                    showMessage('图片上传失败', 'error');
+                }
+            }
+        });
+    }
+
+    // pl代码高亮插入功能
+    if(codeBtn && codePanel) {
+        const closeBtn = codePanel.querySelector('.close-btn');
+        const insertBtn = codePanel.querySelector('.insert-code-btn');
+        const codeInput = codePanel.querySelector('.code-input');
+        const langSelect = codePanel.querySelector('.code-language');
+
+        // 初始化代码面板位置
+        codePanel.style.display = 'none';
+        
+        codeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            codePanel.style.display = codePanel.style.display === 'none' ? 'block' : 'none';
+            emojiPanel && (emojiPanel.style.display = 'none');
+            if(codePanel.style.display === 'block') {
+                codeInput.focus();
+            }
+        });
+
+        closeBtn.addEventListener('click', () => {
+            codePanel.style.display = 'none';
+        });
+
+        insertBtn.addEventListener('click', () => {
+            const code = codeInput.value.trim();
+            if(code) {
+                // 修改为WordPress兼容的pre+code标签格式
+                const codeBlock = `\n<pre><code class="language-">\n${code}\n</code></pre>\n`;
+                insertAtBoxmoe(commentTextarea, codeBlock);
+                codeInput.value = '';
+                codePanel.style.display = 'none';
+            }
+        });
+
+        // 回车键提交支持
+        codeInput.addEventListener('keydown', (e) => {
+            if(e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                insertBtn.click();
+            }
+        });
+    }
+
+    document.addEventListener('click', (e) => {
+        // 添加元素存在性检查
+        if(emojiPanel && emojiBtn) {
+            if(!emojiPanel.contains(e.target) && !emojiBtn.contains(e.target)) {
+                emojiPanel.style.display = 'none';
+            }
+        }
+        if(codePanel && codeBtn) {
+            if(!codePanel.contains(e.target) && !codeBtn.contains(e.target)) {
+                codePanel.style.display = 'none';
+            }
+        }
+    });
 }
-var edit_mode = '1', // 再编辑模式( '1'=打开; '0'=关闭 )
-		ajax_php_url = js_url.replace('comments.js','../../module/config/fun-ajax-comments.php').replace(/^https?:\/\/.+\/wp-content/, location.origin+"/wp-content"),
-		wp_url = js_url.substr(0, js_url.indexOf('wp-content')),
-		pic_sb = wp_url + 'wp-admin/images/wpspin_light.gif', // 提交 icon
-		pic_no = '<i class="fa fa-meh-o"></i>',      // 错误 icon
-		pic_ys = '<i class="fa fa-smile-o"></i>',     // 成功 icon
-		txt1 = '<div id="comment_loading"><i class="fa fa-spinner fa-spin"></i> 正在提交, 请稍候...</div>',
-		txt2 = '<div id="error">#</div>',
-		txt3 = '"> <div id="edita" class="badge bg-gradient-info">提交成功！',
-		edt1 = '刷新页面之前您可以<a rel="nofollow" class="comment-reply-link_a" href="#edit" onclick=\'return addComment.moveForm("',
-		edt2 = ')\'>&nbsp;&nbsp;重新编辑</a></div> ',
-		cancel_edit = '取消编辑',
-		edit, num = 1, comm_array=[]; comm_array.push('');
-
-jQuery(document).ready(function($) {
-		$comments = $('#comments-title'); // 评论数据的 ID
-		$cancel = $('#cancel-comment-reply-link'); cancel_text = $cancel.text();
-		$submit = $('#commentform #submit'); $submit.attr('disabled', false);
-		$('#comment').after( txt1 + txt2 ); $('#comment_loading').hide(); $('#error').hide();
-		$body = (window.opera) ? (document.compatMode == "CSS1Compat" ? $('html') : $('body')) : $('html,body');
-
-/** submit */
-$('#commentform').submit(function() {
-		$('#comment_loading').slideDown();
-		$submit.attr('disabled', true).fadeTo('slow', 0.5);
-		if ( edit ) $('#comment').after('<input type="text" name="edit_id" id="edit_id" value="' + edit + '" style="display:none;" />');
-
-/** Ajax */
-	$.ajax( {
-		url: ajax_php_url,
-		data: $(this).serialize(),
-		type: $(this).attr('method'),
-
-		error: function(request) {
-			$('#comment_loading').slideUp();
-			$('#error').slideDown().html( pic_no + request.responseText);
-			setTimeout(function() {$submit.attr('disabled', false).fadeTo('slow', 1); $('#error').slideUp();}, 3000);
-			},
-
-		success: function(data) {
-			$('#comment_loading').hide();
-			comm_array.push($('#comment').val());
-			$('textarea').each(function() {this.value = ''});
-			var t = addComment, cancel = t.I('cancel-comment-reply-link'), temp = t.I('wp-temp-form-div'), respond = t.I(t.respondId), post = t.I('comment_post_ID').value, parent = t.I('comment_parent').value;
-
-// comments
-		if ( ! edit && $comments.length ) {
-			n = parseInt($comments.text().match(/\d+/));
-			$comments.text($comments.text().replace( n, n + 1 ));
-		}
-
-// show comment
-		new_htm = '" id="new_comm_' + num + '"></';
-		new_htm = ( parent == '0' ) ? ('\n<ul class="children' + new_htm + 'ul>') : ('\n<ul class="children' + new_htm + 'ul>');
-
-		ok_htm = '\n<span id="success_' + num + txt3;
-		if ( edit_mode == '1' ) {
-			div_ = (document.body.innerHTML.indexOf('div-comment-') == -1) ? '' : ((document.body.innerHTML.indexOf('li-comment-') == -1) ? 'div-' : '');
-			ok_htm = ok_htm.concat(edt1, div_, 'comment-', parent, '", "', parent, '", "respond", "', post, '", ', num, edt2);
-		}
-		ok_htm += '</span>\n';
-
-		$('#respond_com').before(new_htm);
-		$('#new_comm_' + num).hide().append(data);
-		$('#new_comm_' + num).append(ok_htm);
-		$('#new_comm_' + num).fadeIn(4000);
-
-		$body.animate( { scrollTop: $('#new_comm_' + num).offset().top - 200}, 900);
-		countdown(); num++ ; edit = ''; $('*').remove('#edit_id');
-		cancel.style.display = 'none';
-		cancel.onclick = null;
-		t.I('comment_parent').value = '0';
-		if ( temp && respond ) {
-			temp.parentNode.insertBefore(respond, temp);
-			temp.parentNode.removeChild(temp)
-		}
-		}
-	}); // end Ajax
-  return false;
-}); // end submit
-
-/** comment-reply.dev.js */
-addComment = {
-	moveForm : function(commId, parentId, respondId, postId, num) {
-		var t = this, div, comm = t.I(commId), respond = t.I(respondId), cancel = t.I('cancel-comment-reply-link'), parent = t.I('comment_parent'), post = t.I('comment_post_ID');
-		if ( edit ) exit_prev_edit();
-		num ? (
-			t.I('comment').value = comm_array[num],
-			edit = t.I('new_comm_' + num).innerHTML.match(/(comment-)(\d+)/)[2],
-			$new_sucs = $('#success_' + num ), $new_sucs.hide(),
-			$new_comm = $('#new_comm_' + num ), $new_comm.hide(),
-			$cancel.text(cancel_edit)
-		) : $cancel.text(cancel_text);
-
-		t.respondId = respondId;
-		postId = postId || false;
-
-		if ( !t.I('wp-temp-form-div') ) {
-			div = document.createElement('div');
-			div.id = 'wp-temp-form-div';
-			div.style.display = 'none';
-			respond.parentNode.insertBefore(div, respond)
-		}
-
-		!comm ? ( 
-			temp = t.I('wp-temp-form-div'),
-			t.I('comment_parent').value = '0',
-			temp.parentNode.insertBefore(respond, temp),
-			temp.parentNode.removeChild(temp)
-		) : comm.parentNode.insertBefore(respond, comm.nextSibling);
-
-		$body.animate( { scrollTop: $('#respond').offset().top - 180 }, 400);
-
-		if ( post && postId ) post.value = postId;
-		parent.value = parentId;
-		cancel.style.display = '';
-
-		cancel.onclick = function() {
-			if ( edit ) exit_prev_edit();
-			var t = addComment, temp = t.I('wp-temp-form-div'), respond = t.I(t.respondId);
-
-			t.I('comment_parent').value = '0';
-			if ( temp && respond ) {
-				temp.parentNode.insertBefore(respond, temp);
-				temp.parentNode.removeChild(temp);
-			}
-			this.style.display = 'none';
-			this.onclick = null;
-			return false;
-		};
-
-		try { t.I('comment').focus(); }
-		catch(e) {}
-
-		return false;
-	},
-
-	I : function(e) {
-		return document.getElementById(e);
-	}
-}; // end addComment
-
-function exit_prev_edit() {
-		$new_comm.show(); $new_sucs.show();
-		$('textarea').each(function() {this.value = ''});
-		edit = '';
+// 评论回复初始化
+function initCommentReply() {
+    const commentForm = document.getElementById('respond');
+    const cancelReply = document.getElementById('cancel-comment-reply-link');
+    const commentList = document.querySelector('.comments-list');
+    if (!commentForm || !cancelReply || !commentList) return;
+    let originalPosition = null; 
+    document.querySelectorAll('.comment-reply-link').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (!commentForm) return;        
+            if (!originalPosition) {
+                originalPosition = commentForm.parentNode;
+            }
+            const commentItem = link.closest('.comment-item');
+            const commentContent = commentItem?.querySelector('.comment-content');               
+            if (!commentContent) return;         
+            cancelReply.style.display = 'inline-block';
+            commentContent.appendChild(commentForm);
+            commentForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            commentForm.querySelector('#comment')?.focus();
+        });
+    });
+    if(cancelReply) {
+        cancelReply.addEventListener('click', (e) => {
+            e.preventDefault();
+            cancelReply.style.display = 'none';
+            if (originalPosition) {
+                originalPosition.appendChild(commentForm);
+            }
+            commentForm?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+    }
 }
 
-var wait = 8, submit_val = $submit.val();
-function countdown() {
-	if ( wait > 0 ) {
-		$submit.val(wait); wait--; setTimeout(countdown, 1000);
-	} else {
-		$submit.val(submit_val).attr('disabled', false).fadeTo('slow', 1);
-		wait = 8;
-  }
+// 评论消息初始化
+function showMessage(message, type = 'success') {
+    const messageEl = document.querySelector('.comment-message');
+    const contentEl = messageEl.querySelector('.message-content');
+    
+    messageEl.className = 'comment-message ' + type;
+    contentEl.textContent = message;
+    messageEl.classList.add('show');
+
+    setTimeout(() => {
+        messageEl.classList.remove('show');
+    }, 5000);
 }
 
+//编辑器辅助函数
+function insertAtBoxmoe(textarea, text) {
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const value = textarea.value;
+    
+    textarea.value = value.substring(0, start) + text + value.substring(end);
+    textarea.selectionStart = textarea.selectionEnd = start + text.length;
+    textarea.focus();
+}
+
+// 评论列表显示/隐藏功能初始化
+function initCommentsToggle() {
+    const toggle = document.querySelector('.comments-toggle');
+    const commentsList = document.querySelector('.comments-list');
+    
+    if (!toggle || !commentsList) return;
+    
+    // 从localStorage获取状态
+    const isOpen = localStorage.getItem('commentsListOpen') === 'true';
+    
+    // 初始化状态
+    if (isOpen) {
+        toggle.classList.add('active');
+        toggle.querySelector('span').textContent = '收起评论列表';
+        commentsList.classList.add('show');
+    }
+    
+    toggle.addEventListener('click', () => {
+        const isActive = toggle.classList.toggle('active');
+        toggle.querySelector('span').textContent = isActive ? '收起评论列表' : '查看评论列表';
+        commentsList.classList.toggle('show');
+        
+        // 保存状态到localStorage
+        localStorage.setItem('commentsListOpen', isActive);
+    });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    initCommentReply();
+    initCommentToolbar();
+    initCommentsToggle();
 });
-}

@@ -3,38 +3,53 @@
  * @link https://www.boxmoe.com
  * @package lolimeow
  */
-?>
-      </section>			  
-    </div>
-
-<footer class="footer pb-3 pt-3 position-relative">
-	
-  <div class="container">
-  <hr class="horizontal dark">
-    <div class="row">
-      <div class="col-lg-3">
-        <h6 class="font-weight-bolder mb-lg-4 mb-3"><i class="fa fa-sign-language"></i> <?php echo get_bloginfo( 'name' );?></h6>
-      </div>
-      <div class="col-lg-6 text-center">
-        <?php boxmoe_footer_seo();?>
-        <?php boxmoe_footer_info();?>
-      </div>
-      <?php boxmoe_footer_qq();?>
-    </div>
-  </div>
-</footer>
-    <div id="search">
-      <span class="close">X</span>
-      <form role="search" id="searchform" method="get" action="<?php echo home_url( '/' ) ?>">
-        <div class="search_form_inner  animate slideUp">
-          <div class="search-bar">
-            <i class="fa fa-search"></i>
-            <input type="search" name="s" value="<?php echo htmlspecialchars($s) ?>" placeholder="输入搜索关键词..." /></div>
+//boxmoe.com===安全设置=阻止直接访问主题文件
+if(!defined('ABSPATH')){echo'Look your sister';exit;}?>
         </div>
-      </form>
+        </section>
+<footer class="mt-7">
+    <hr class="horizontal dark">
+      <div class="container pb-4">
+        <div class="row align-items-center">
+        <?php echo boxmoe_load_assets_footer(); ?>
+      </div>
+    </footer>
+    <div class="body-background"></div>
+    <div class="floating-action-menu">
+      <nav class="floating-menu-items">
+        <ul>
+          <?php if(get_boxmoe('boxmoe_blog_layout')=='two'): ?>
+          <li class="d-lg-none">
+            <button class="float-btn" title="打开侧栏" data-bs-toggle="offcanvas" href="#blog-sidebar" aria-controls="blog-sidebar">
+              <i class="fa fa-outdent"></i>
+            </button>
+          </li>
+          <?php endif; ?>
+          <?php if(get_boxmoe('boxmoe_lolijump_switch')): ?>
+          <li>
+            <a id="lolijump" href="#" title="返回顶部">
+              <img src="<?php echo boxmoe_theme_url(); ?>/assets/images/top/<?php echo get_boxmoe('boxmoe_lolijump_img'); ?>.gif" alt="返回顶部"></a>
+          </li>
+          <?php endif; ?>
+        </ul>
+      </nav>
     </div>
-	<?php echo boxmoe_load_footer(); ?>
-	<?php wp_footer(); ?>
-	<?php echo get_boxmoe('diy_code_footer',''); ?>
+    <?php 
+    ob_start();
+    wp_footer();
+    $wp_footer_output = ob_get_clean();
+    echo preg_replace('/\n/', "\n    ", trim($wp_footer_output))."\n    ";
+    ?>
+    <?php echo get_boxmoe('boxmoe_diy_code_footer'); ?>
   </body>
 </html>
+<style>
+.toast {
+  transition: transform .3s ease-out !important;
+    transform: translateX(100%);
+}
+
+.toast.fade.show {
+    transform: translateX(0);
+}
+</style>
